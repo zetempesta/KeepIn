@@ -43,7 +43,11 @@ htmlcov/
 coverage/
 
 # Build outputs
-build/
+build/*
+!web/build/
+web/build/*
+!web/build/web/
+!web/build/web/**
 dist/
 
 # Tauri / Rust
