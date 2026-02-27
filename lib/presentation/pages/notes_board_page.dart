@@ -1258,7 +1258,7 @@ class _NoteEditorSheetState extends ConsumerState<_NoteEditorSheet> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              '#${_selectedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                              '#${_selectedColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}',
                               style: Theme.of(context)
                                   .textTheme
                                   .bodyMedium
@@ -1357,7 +1357,7 @@ class _NoteEditorSheetState extends ConsumerState<_NoteEditorSheet> {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          '#${draftColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                          '#${draftColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}',
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium

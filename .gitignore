@@ -44,10 +44,9 @@ coverage/
 
 # Build outputs
 build/*
-!web/build/
-web/build/*
-!web/build/web/
-!web/build/web/**
+!build/web/
+!build/web/**
+web/build/
 dist/
 
 # Tauri / Rust

@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     db_password: str = "postgres"
     api_host: str = "127.0.0.1"
     api_port: int = 8000
+    cors_origin_regex: str = (
+        r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+        r"|^https://[a-z0-9-]+\.onrender\.com$"
+    )
 
     model_config = SettingsConfigDict(
         env_prefix="KEEPIN_",
