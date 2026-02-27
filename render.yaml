@@ -12,6 +12,7 @@ services:
       paths:
         - backend/**
         - requirements.txt
+        - .python-version
         - render.yaml
     envVars:
       - key: PYTHON_VERSION
