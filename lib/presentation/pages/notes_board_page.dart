@@ -17,6 +17,7 @@ class NotesBoardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notesStateAsync = ref.watch(notesControllerProvider);
     final notesState = notesStateAsync.valueOrNull;
+    final isCompact = MediaQuery.sizeOf(context).width < 720;
 
     return Scaffold(
       body: SafeArea(
@@ -29,7 +30,12 @@ class NotesBoardPage extends ConsumerWidget {
                   delegate: const _HeaderDelegate(),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                  padding: EdgeInsets.fromLTRB(
+                    isCompact ? 12 : 20,
+                    8,
+                    isCompact ? 12 : 20,
+                    isCompact ? 20 : 24,
+                  ),
                   sliver: SliverToBoxAdapter(
                     child: _NotesContent(
                       notesStateAsync: notesStateAsync,
@@ -45,8 +51,8 @@ class NotesBoardPage extends ConsumerWidget {
               ],
             ),
             Positioned(
-              top: 16,
-              right: 20,
+              top: isCompact ? 12 : 16,
+              right: isCompact ? 12 : 20,
               child: Tooltip(
                 message: 'Sair',
                 child: IconButton.filledTonal(
@@ -178,6 +184,7 @@ class _NotesContent extends ConsumerWidget {
           state.notes,
           catalogLabels: catalogLabels,
         );
+        final isCompact = MediaQuery.sizeOf(context).width < 720;
         final normalizedLabelsSearch = _normalizedSearchText(labelsSearchQuery);
         final filteredLabels = normalizedLabelsSearch.isEmpty
             ? availableLabels
@@ -204,13 +211,37 @@ class _NotesContent extends ConsumerWidget {
                   ).contains(normalizedSearch),
                 )
                 .toList(growable: false);
+        final void Function(String?) selectLabel = (label) {
+          ref.read(selectedLabelProvider.notifier).state = label;
+        };
+        final labelsSidebar = _LabelsSidebar(
+          labels: filteredLabels,
+          labelsSearchQuery: labelsSearchQuery,
+          selectedLabel: activeLabel,
+          notes: state.notes,
+          isLoading: catalogLabelsAsync.isLoading,
+          onSelected: (label) {
+            selectLabel(label);
+            if (isCompact) {
+              Navigator.of(context, rootNavigator: true).maybePop();
+            }
+          },
+          onLabelsSearchChanged: (value) {
+            ref.read(labelsSearchQueryProvider.notifier).state = value;
+          },
+          onCreateLabel: () => _promptCreateLabel(context, ref),
+          onRenameLabel: (label) => _promptRenameLabel(context, ref, label),
+          onDeleteLabel: (label) => _confirmDeleteLabel(context, ref, label),
+          onDropNoteToLabel: (payload, label) =>
+              _moveNoteToLabel(ref, payload, label),
+        );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             if (state.errorMessage != null) ...<Widget>[
               _InlineError(message: state.errorMessage!),
-              const SizedBox(height: 12),
+              SizedBox(height: isCompact ? 10 : 12),
             ],
             _NotesSearchBar(
               query: searchQuery,
@@ -218,9 +249,62 @@ class _NotesContent extends ConsumerWidget {
                 ref.read(notesSearchQueryProvider.notifier).state = value;
               },
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: isCompact ? 12 : 16),
+            if (isCompact) ...<Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          _showLabelsDrawer(context, child: labelsSidebar),
+                      icon: const Icon(Icons.label_outline_rounded),
+                      label: Text(
+                        activeLabel == null
+                            ? 'Todas as labels'
+                            : 'Label: $activeLabel',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  if (activeLabel != null) ...<Widget>[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Limpar filtro',
+                      onPressed: () => selectLabel(null),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
             LayoutBuilder(
               builder: (context, constraints) {
+                if (isCompact) {
+                  return visibleNotes.isEmpty
+                      ? _NotesFeedback(
+                          icon: state.notes.isEmpty
+                              ? Icons.note_add_outlined
+                              : Icons.label_outline_rounded,
+                          title: state.notes.isEmpty
+                              ? 'Nenhuma nota ainda'
+                              : normalizedSearch.isNotEmpty
+                                  ? 'Nenhuma nota encontrada'
+                                  : 'Nenhuma nota nessa label',
+                          message: state.notes.isEmpty
+                              ? (state.errorMessage ??
+                                  'Toque no botao + para criar sua primeira nota.')
+                              : normalizedSearch.isNotEmpty
+                                  ? 'Ajuste sua busca ou selecione outro filtro.'
+                                  : 'Selecione outra label ou volte para todas as notas.',
+                        )
+                      : _NotesGrid(
+                          notes: visibleNotes,
+                          activeLabel: activeLabel,
+                          onEdit: onEdit,
+                        );
+                }
+
                 final sidebarWidth = constraints.maxWidth >= 960
                     ? 248.0
                     : constraints.maxWidth >= 720
@@ -232,30 +316,9 @@ class _NotesContent extends ConsumerWidget {
                   children: <Widget>[
                     SizedBox(
                       width: sidebarWidth,
-                      child: _LabelsSidebar(
-                        labels: filteredLabels,
-                        labelsSearchQuery: labelsSearchQuery,
-                        selectedLabel: activeLabel,
-                        notes: state.notes,
-                        isLoading: catalogLabelsAsync.isLoading,
-                        onSelected: (label) {
-                          ref.read(selectedLabelProvider.notifier).state =
-                              label;
-                        },
-                        onLabelsSearchChanged: (value) {
-                          ref.read(labelsSearchQueryProvider.notifier).state =
-                              value;
-                        },
-                        onCreateLabel: () => _promptCreateLabel(context, ref),
-                        onRenameLabel: (label) =>
-                            _promptRenameLabel(context, ref, label),
-                        onDeleteLabel: (label) =>
-                            _confirmDeleteLabel(context, ref, label),
-                        onDropNoteToLabel: (payload, label) =>
-                            _moveNoteToLabel(ref, payload, label),
-                      ),
+                      child: labelsSidebar,
                     ),
-                    const SizedBox(width: 18),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: visibleNotes.isEmpty
                           ? _NotesFeedback(
@@ -274,61 +337,10 @@ class _NotesContent extends ConsumerWidget {
                                       ? 'Ajuste sua busca ou selecione outro filtro.'
                                       : 'Selecione outra label ou volte para todas as notas.',
                             )
-                          : LayoutBuilder(
-                              builder: (context, gridConstraints) {
-                                final crossAxisCount =
-                                    gridConstraints.maxWidth >= 900
-                                        ? 4
-                                        : gridConstraints.maxWidth >= 640
-                                            ? 3
-                                            : 2;
-
-                                return MasonryGridView.count(
-                                  crossAxisCount: crossAxisCount,
-                                  mainAxisSpacing: 16,
-                                  crossAxisSpacing: 16,
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: visibleNotes.length,
-                                  itemBuilder: (context, index) {
-                                    final note = visibleNotes[index];
-
-                                    return LongPressDraggable<_NoteDragPayload>(
-                                      data: _NoteDragPayload(
-                                        note: note,
-                                        sourceLabel: activeLabel,
-                                      ),
-                                      feedback: Material(
-                                        color: Colors.transparent,
-                                        child: ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                            maxWidth: 280,
-                                          ),
-                                          child: Opacity(
-                                            opacity: 0.92,
-                                            child: NoteCard(note: note),
-                                          ),
-                                        ),
-                                      ),
-                                      childWhenDragging: Opacity(
-                                        opacity: 0.35,
-                                        child: NoteCard(
-                                          key: ValueKey(note.id ??
-                                              '${note.createdAt.microsecondsSinceEpoch}-$index'),
-                                          note: note,
-                                          onTap: () => onEdit(note),
-                                        ),
-                                      ),
-                                      child: NoteCard(
-                                        key: ValueKey(note.id ??
-                                            '${note.createdAt.microsecondsSinceEpoch}-$index'),
-                                        note: note,
-                                        onTap: () => onEdit(note),
-                                      ),
-                                    );
-                                  },
-                                );
-                              },
+                          : _NotesGrid(
+                              notes: visibleNotes,
+                              activeLabel: activeLabel,
+                              onEdit: onEdit,
                             ),
                     ),
                   ],
@@ -355,8 +367,10 @@ class _NotesFeedback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 720;
+
     return Padding(
-      padding: const EdgeInsets.only(top: 44),
+      padding: EdgeInsets.only(top: isCompact ? 24 : 44),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
@@ -373,7 +387,7 @@ class _NotesFeedback extends StatelessWidget {
               ],
             ),
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isCompact ? 18 : 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
@@ -398,6 +412,134 @@ class _NotesFeedback extends StatelessWidget {
       ),
     );
   }
+}
+
+class _NotesGrid extends StatelessWidget {
+  const _NotesGrid({
+    required this.notes,
+    required this.activeLabel,
+    required this.onEdit,
+  });
+
+  final List<Note> notes;
+  final String? activeLabel;
+  final ValueChanged<Note> onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 720;
+
+    return LayoutBuilder(
+      builder: (context, gridConstraints) {
+        final crossAxisCount = gridConstraints.maxWidth >= 1040
+            ? 4
+            : gridConstraints.maxWidth >= 760
+                ? 3
+                : gridConstraints.maxWidth >= 560
+                    ? 2
+                    : 1;
+        final spacing = isCompact ? 12.0 : 16.0;
+        final dragFeedbackMaxWidth = isCompact ? 240.0 : 280.0;
+
+        return MasonryGridView.count(
+          crossAxisCount: crossAxisCount,
+          mainAxisSpacing: spacing,
+          crossAxisSpacing: spacing,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: notes.length,
+          itemBuilder: (context, index) {
+            final note = notes[index];
+
+            return LongPressDraggable<_NoteDragPayload>(
+              data: _NoteDragPayload(
+                note: note,
+                sourceLabel: activeLabel,
+              ),
+              feedback: Material(
+                color: Colors.transparent,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: dragFeedbackMaxWidth,
+                  ),
+                  child: Opacity(
+                    opacity: 0.92,
+                    child: NoteCard(note: note),
+                  ),
+                ),
+              ),
+              childWhenDragging: Opacity(
+                opacity: 0.35,
+                child: NoteCard(
+                  key: ValueKey(
+                    note.id ?? '${note.createdAt.microsecondsSinceEpoch}-$index',
+                  ),
+                  note: note,
+                  onTap: () => onEdit(note),
+                ),
+              ),
+              child: NoteCard(
+                key: ValueKey(
+                  note.id ?? '${note.createdAt.microsecondsSinceEpoch}-$index',
+                ),
+                note: note,
+                onTap: () => onEdit(note),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+Future<void> _showLabelsDrawer(
+  BuildContext context, {
+  required Widget child,
+}) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  final drawerWidth = screenWidth * 0.88 > 320 ? 320.0 : screenWidth * 0.88;
+
+  return showGeneralDialog<void>(
+    context: context,
+    barrierLabel: 'Labels',
+    barrierDismissible: true,
+    barrierColor: const Color(0x66000000),
+    transitionDuration: const Duration(milliseconds: 220),
+    pageBuilder: (context, animation, secondaryAnimation) {
+      return SafeArea(
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: drawerWidth,
+            child: Material(
+              color: Colors.transparent,
+              child: Drawer(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SingleChildScrollView(child: child),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      final curvedAnimation = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      );
+
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(-1, 0),
+          end: Offset.zero,
+        ).animate(curvedAnimation),
+        child: child,
+      );
+    },
+  );
 }
 
 class _NotesSearchBar extends StatefulWidget {
